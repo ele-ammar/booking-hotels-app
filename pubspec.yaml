@@ -1,0 +1,39 @@
+name: booking
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  page_transition: ^2.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+# The following section is specific to Flutter packages.
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/imgw.jpg
+    - assets/images/imgwt.jpg
+    - assets/images/login_bg.jpeg
+    - assets/images/signup_bg.jpeg
+    - assets/images/img1.jpg
+    - assets/images/img2.jpg
+    - assets/images/img3.jpg
+    - assets/images/img4.jpg
+    - assets/images/img5.jpg
+    - assets/images/img6.jpg
+    - assets/images/img7.jpg
+    - assets/images/img8.jpg
+    - assets/images/img9.jpg
+    - assets/images/img10.jpg
+    - assets/images/logo.png
