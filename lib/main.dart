@@ -1,3 +1,6 @@
+import 'package:booking/screens/admin/admin_hotel_edit_screen.dart';
+import 'package:booking/screens/admin/admin_hotel_list_screen.dart';
+import 'package:booking/screens/hotel_detail_page.dart';
 import 'package:booking/screens/welcome_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -19,7 +22,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
       home:
-      const WelcomeScreen(),
+      WelcomeScreen(),
       debugShowCheckedModeBanner: false,
     );
   }

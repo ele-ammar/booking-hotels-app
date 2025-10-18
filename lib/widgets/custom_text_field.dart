@@ -1,14 +1,14 @@
-// lib/widgets/custom_text_field.dart
 import 'package:flutter/material.dart';
-import 'package:booking/core/constants/app_colors.dart';
 
 class CustomTextField extends StatelessWidget {
+  final TextEditingController controller;
   final String hintText;
   final IconData prefixIcon;
   final bool obscureText;
 
   const CustomTextField({
     super.key,
+    required this.controller,
     required this.hintText,
     required this.prefixIcon,
     this.obscureText = false,
@@ -17,20 +17,16 @@ class CustomTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextField(
+      controller: controller, // ✅ crucial pour récupérer la valeur saisie
       obscureText: obscureText,
       decoration: InputDecoration(
+        prefixIcon: Icon(prefixIcon),
+        hintText: hintText,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
         filled: true,
         fillColor: Colors.white,
-        hintText: hintText,
-        prefixIcon: Icon(prefixIcon, color: AppColors.grey),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.grey),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.primary),
-        ),
       ),
     );
   }

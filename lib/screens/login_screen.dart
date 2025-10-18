@@ -5,8 +5,25 @@ import 'package:booking/core/constants/app_strings.dart';
 import '../widgets/custom_text_field.dart';
 import 'signup_screen.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  // ✅ Add controllers
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    // ✅ Clean up controllers
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,11 +66,13 @@ class LoginScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 30),
                     CustomTextField(
+                      controller: _usernameController, // ✅ Added
                       hintText: AppStrings.usernameHint,
                       prefixIcon: Icons.person_outline,
                     ),
                     const SizedBox(height: 10),
                     CustomTextField(
+                      controller: _passwordController, // ✅ Added
                       hintText: AppStrings.passwordHint,
                       prefixIcon: Icons.lock_outline,
                       obscureText: true,
@@ -64,9 +83,22 @@ class LoginScreen extends StatelessWidget {
                         Expanded(
                           child: OutlinedButton(
                             onPressed: () {
+                              // ✅ Now you can read input values
+                              final username = _usernameController.text;
+                              final password = _passwordController.text;
+
+                              if (username.isEmpty || password.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Please fill all fields")),
+                                );
+                                return;
+                              }
+
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Login clicked")),
+                                SnackBar(content: Text("Login clicked: $username")),
                               );
+
+                              // TODO: Call your login API here
                             },
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(color: AppColors.primary),
@@ -74,11 +106,7 @@ class LoginScreen extends StatelessWidget {
                               backgroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
-
                               ),
-
-
-
                             ),
                             child: Text(AppStrings.loginButton),
                           ),
@@ -98,8 +126,8 @@ class LoginScreen extends StatelessWidget {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              minimumSize: Size(double.infinity, 40), // ⬅️ Hauteur réduite à 40
-                              padding: EdgeInsets.symmetric(vertical: 8), // ⬅️ Padding vertical réduit
+                              minimumSize: Size(double.infinity, 40),
+                              padding: EdgeInsets.symmetric(vertical: 8),
                             ),
                             child: Text(AppStrings.signupButton),
                           ),
@@ -110,7 +138,6 @@ class LoginScreen extends StatelessWidget {
                     // 🔗 Forgot Password
                     TextButton(
                       onPressed: () {
-                        // TODO: Forgot password logic (ex: show dialog, navigate, etc.)
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text("Forgot password?")),
                         );
