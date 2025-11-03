@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 class HotelDetailPage extends StatefulWidget {
-  final String hotelId; // ← Requis : ID MongoDB de l'hôtel
+  final String hotelId;
 
   const HotelDetailPage({Key? key, required this.hotelId}) : super(key: key);
 
@@ -18,7 +18,7 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
   bool _isLoading = true;
   String? _error;
 
-  final String _baseUrl = 'http://192.168.1.25:3000/api/hotels'; // ← Ton IP locale
+  final String _baseUrl = 'http://192.168.1.198:3000/api/hotels'; // ← Ton IP locale
 
   @override
   void initState() {

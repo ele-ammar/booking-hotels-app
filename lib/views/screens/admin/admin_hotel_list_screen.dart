@@ -1,76 +1,24 @@
-// lib/screens/admin/admin_hotel_list_screen.dart
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:provider/provider.dart';
+import '/../models/hotel.dart';
+import '/../controllers/hotel_controller.dart';
 import '../hotel_detail_page.dart';
 import 'admin_hotel_edit_screen.dart';
 
-
-class AdminHotelListScreen extends StatefulWidget {
+class AdminHotelListScreen extends StatelessWidget {
   const AdminHotelListScreen({Key? key}) : super(key: key);
 
   @override
-  State<AdminHotelListScreen> createState() => _AdminHotelListScreenState();
-}
-
-class _AdminHotelListScreenState extends State<AdminHotelListScreen> {
-  List<dynamic> _hotels = [];
-  bool _isLoading = true;
-  final String _baseUrl = 'http://192.168.1.25:3000/api/hotels';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadHotels();
-  }
-
-  Future<void> _loadHotels() async {
-    try {
-      final response = await http.get(Uri.parse(_baseUrl));
-      if (response.statusCode == 200) {
-        setState(() {
-          _hotels = jsonDecode(response.body);
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur chargement')));
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _deleteHotel(String id, String name) async { // ← Changé en String
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Supprimer ?'),
-        content: Text('Voulez-vous supprimer "$name" ?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Annuler')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Supprimer', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        final response = await http.delete(Uri.parse('$_baseUrl/$id'));
-        if (response.statusCode == 200) {
-          _loadHotels();
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Hôtel supprimé')));
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur suppression')));
-      }
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final hotelController = Provider.of<HotelController>(context);
+
+    // Charger les données au premier build (comme initState)
+    if (hotelController.hotels.isEmpty && !hotelController.isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        hotelController.loadHotels();
+      });
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -85,16 +33,24 @@ class _AdminHotelListScreenState extends State<AdminHotelListScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : _hotels.isEmpty
-          ? Center(child: Text('Aucun hôtel trouvé'))
-          : ListView.builder(
-        padding: EdgeInsets.all(16),
-        itemCount: _hotels.length,
-        itemBuilder: (context, index) {
-          final hotel = _hotels[index];
-          return _buildHotelCard(hotel);
+      body: Consumer<HotelController>(
+        builder: (context, controller, child) {
+          if (controller.isLoading) {
+            return Center(child: CircularProgressIndicator());
+          }
+
+          if (controller.hotels.isEmpty) {
+            return Center(child: Text('Aucun hôtel trouvé'));
+          }
+
+          return ListView.builder(
+            padding: EdgeInsets.all(16),
+            itemCount: controller.hotels.length,
+            itemBuilder: (context, index) {
+              final hotel = controller.hotels[index];
+              return _buildHotelCard(context, hotel, controller);
+            },
+          );
         },
       ),
       floatingActionButton: FloatingActionButton(
@@ -104,15 +60,14 @@ class _AdminHotelListScreenState extends State<AdminHotelListScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => AdminHotelEditScreen()),
-          ).then((_) => _loadHotels());
+          ).then((_) => hotelController.loadHotels());
         },
       ),
     );
   }
 
-  Widget _buildHotelCard(Map<String, dynamic> hotel) {
-    final String imageUrl = hotel['image_url'] ?? '';
-    final bool isNetworkImage = imageUrl.startsWith('http');
+  Widget _buildHotelCard(BuildContext context, Hotel hotel, HotelController controller) {
+    final bool isNetworkImage = hotel.imageUrl.startsWith('http');
 
     return Card(
       margin: EdgeInsets.only(bottom: 16),
@@ -129,7 +84,7 @@ class _AdminHotelListScreenState extends State<AdminHotelListScreen> {
                 height: 100,
                 child: isNetworkImage
                     ? Image.network(
-                  imageUrl,
+                  hotel.imageUrl,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     color: Colors.grey[200],
@@ -137,7 +92,7 @@ class _AdminHotelListScreenState extends State<AdminHotelListScreen> {
                   ),
                 )
                     : Image.asset(
-                  imageUrl,
+                  hotel.imageUrl,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     color: Colors.grey[200],
@@ -152,24 +107,24 @@ class _AdminHotelListScreenState extends State<AdminHotelListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    hotel['name'] ?? 'Sans nom',
+                    hotel.name,
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   SizedBox(height: 4),
                   Text(
-                    hotel['location'] ?? '',
+                    hotel.location,
                     style: TextStyle(color: Colors.grey),
                   ),
                   SizedBox(height: 6),
                   Row(
                     children: [
                       Icon(Icons.star, color: Colors.yellow[700], size: 16),
-                      Text('${hotel['stars'] ?? 0}', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('${hotel.stars}', style: TextStyle(fontWeight: FontWeight.bold)),
                       Spacer(),
                       Text(
-                        '${hotel['price_per_month']?.toStringAsFixed(0) ?? '0'} TND',
+                        '${hotel.pricePerMonth.toStringAsFixed(0)} TND',
                         style: TextStyle(color: Color(0xFF00AEEF), fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -177,17 +132,17 @@ class _AdminHotelListScreenState extends State<AdminHotelListScreen> {
                 ],
               ),
             ),
-            // 🔥 NOUVEAU : Boutons d'action (3 icônes)
+            // 🔥 Boutons d'action
             Column(
               children: [
-                // 👁️ Voir (Preview)
+                // 👁️ Voir
                 IconButton(
                   icon: Icon(Icons.visibility, color: Colors.grey[700]),
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => HotelDetailPage(hotelId: hotel['id']),
+                        builder: (_) => HotelDetailPage(hotelId: hotel.id),
                       ),
                     );
                   },
@@ -199,15 +154,40 @@ class _AdminHotelListScreenState extends State<AdminHotelListScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => AdminHotelEditScreen(hotelId: hotel['id']),
+                        builder: (_) => AdminHotelEditScreen(hotelId: hotel.id),
                       ),
-                    ).then((_) => _loadHotels());
+                    ).then((_) => controller.loadHotels());
                   },
                 ),
                 // 🗑️ Supprimer
                 IconButton(
                   icon: Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => _deleteHotel(hotel['id'], hotel['name']),
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text('Supprimer ?'),
+                        content: Text('Voulez-vous supprimer "${hotel.name}" ?'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Annuler')),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: Text('Supprimer', style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirm == true) {
+                      final success = await controller.deleteHotel(hotel.id);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(success ? 'Hôtel supprimé' : 'Erreur suppression'),
+                        ),
+                      );
+                    }
+                  },
                 ),
               ],
             ),
