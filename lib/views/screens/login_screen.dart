@@ -1,13 +1,17 @@
 // lib/screens/login_screen.dart
+import 'package:booking/views/screens/user_home_screen.dart';
 import 'package:booking/views/screens/welcome_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:booking/core/constants/app_colors.dart';
-import 'package:booking/core/constants/app_strings.dart';
+import 'package:provider/provider.dart';
+
+import '../../controllers/hotel_card_controller.dart' show HotelCardController;
+import '../../core/constants/app_strings.dart';
 import '../../widgets/custom_text_field.dart';
 import 'admin/admin_home_screen.dart';
 import 'signup_screen.dart';
-import '../../controllers/auth_controller.dart';
+import '../../controllers/auth_controller.dart'; // We'll instantiate it directly
+import '../../models/user.dart'; // Ensure User model has `role` & `isAdmin`
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,6 +24,13 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  // 🔹 Local state (no provider!)
+  bool _isLoading = false;
+  String? _authError;
+
+  // 🔹 Instantiate controller directly (singleton or per-screen — both ok for auth)
+  final AuthController _authController = AuthController();
+
   @override
   void dispose() {
     _usernameController.dispose();
@@ -27,12 +38,11 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // 🔑 FLUX COMPLET : Mot de passe oublié → envoi code → saisie nouveau mot de passe
+  // 🔑 Identical forgot password flow — just use _authController directly
   Future<void> _showForgotPasswordFlow(BuildContext context) async {
     // Étape 1 : Saisir l'email
     final emailController = TextEditingController();
     final emailFormKey = GlobalKey<FormState>();
-    final authController = Provider.of<AuthController>(context, listen: false);
 
     String? validateEmail(String? value) {
       if (value == null || value.isEmpty) return 'Email requis';
@@ -41,7 +51,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return null;
     }
 
-    // Afficher la première modale (email)
     bool? emailSubmitted = await showDialog<bool>(
       context: context,
       builder: (ctx) {
@@ -64,29 +73,32 @@ class _LoginScreenState extends State<LoginScreen> {
                         border: OutlineInputBorder(),
                       ),
                       validator: validateEmail,
-                      onChanged: (_) => authController.clearError(),
+                      onChanged: (_) => setState(() => _authError = null),
                     ),
                     const SizedBox(height: 12),
-                    if (authController.authError != null)
-                      Text(authController.authError!, style: TextStyle(color: Colors.red, fontSize: 13)),
+                    if (_authError != null)
+                      Text(_authError!, style: TextStyle(color: Colors.red, fontSize: 13)),
                   ],
                 ),
               ),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Annuler')),
                 ElevatedButton(
-                  onPressed: authController.isLoading
+                  onPressed: _isLoading
                       ? null
                       : () async {
                     if (emailFormKey.currentState!.validate()) {
-                      final success = await authController.forgotPassword(emailController.text.trim());
+                      setState(() => _isLoading = true);
+                      final success = await _authController.forgotPassword(emailController.text.trim());
+                      setState(() => _isLoading = false);
                       if (success) {
-                        Navigator.pop(ctx, true); // Passe à l'étape 2
+                        Navigator.pop(ctx, true);
+                      } else {
+                        setState(() => _authError = _authController.authError);
                       }
-                      // Si échec, l'erreur s'affiche dans la modale
                     }
                   },
-                  child: authController.isLoading
+                  child: _isLoading
                       ? SizedBox(
                     width: 20,
                     height: 20,
@@ -101,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
       },
     );
 
-    if (emailSubmitted != true) return; // Annulé ou échec
+    if (emailSubmitted != true) return;
 
     // Étape 2 : Saisir code + nouveau mot de passe
     final codeController = TextEditingController();
@@ -109,24 +121,16 @@ class _LoginScreenState extends State<LoginScreen> {
     final passwordConfirmController = TextEditingController();
     final resetFormKey = GlobalKey<FormState>();
 
-    String? validateCode(String? value) {
-      if (value == null || value.isEmpty) return 'Code requis';
-      if (value.length != 6 || !RegExp(r'^\d{6}$').hasMatch(value)) return 'Code à 6 chiffres';
-      return null;
-    }
+    String? validateCode(String? value) =>
+        (value == null || value.isEmpty) ? 'Code requis' :
+        (value.length != 6 || !RegExp(r'^\d{6}$').hasMatch(value)) ? 'Code à 6 chiffres' : null;
 
-    String? validatePassword(String? value) {
-      if (value == null || value.isEmpty) return 'Mot de passe requis';
-      if (value.length < 6) return 'Au moins 6 caractères';
-      return null;
-    }
+    String? validatePassword(String? value) =>
+        (value == null || value.isEmpty) ? 'Mot de passe requis' :
+        (value.length < 6) ? 'Au moins 6 caractères' : null;
 
-    String? validatePasswordMatch(String? value) {
-      if (passwordController.text != passwordConfirmController.text) {
-        return 'Les mots de passe ne correspondent pas';
-      }
-      return null;
-    }
+    String? validatePasswordMatch(String? value) =>
+        passwordController.text != passwordConfirmController.text ? 'Les mots de passe ne correspondent pas' : null;
 
     await showDialog(
       context: context,
@@ -175,35 +179,37 @@ class _LoginScreenState extends State<LoginScreen> {
                       obscureText: true,
                     ),
                     const SizedBox(height: 12),
-                    if (authController.authError != null)
-                      Text(authController.authError!, style: TextStyle(color: Colors.red, fontSize: 13)),
+                    if (_authError != null)
+                      Text(_authError!, style: TextStyle(color: Colors.red, fontSize: 13)),
                   ],
                 ),
               ),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Annuler')),
                 ElevatedButton(
-                  onPressed: authController.isLoading
+                  onPressed: _isLoading
                       ? null
                       : () async {
                     if (resetFormKey.currentState!.validate()) {
-                      final success = await authController.resetPassword(
+                      setState(() => _isLoading = true);
+                      final success = await _authController.resetPassword(
                         email: emailController.text.trim(),
                         code: codeController.text.trim(),
                         newPassword: passwordController.text,
                       );
+                      setState(() => _isLoading = false);
                       Navigator.pop(ctx);
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(success ? 'Mot de passe mis à jour !' : authController.authError ?? 'Échec'),
+                            content: Text(success ? 'Mot de passe mis à jour !' : (_authError ?? 'Échec')),
                             backgroundColor: success ? Colors.green : Colors.red,
                           ),
                         );
                       }
                     }
                   },
-                  child: authController.isLoading
+                  child: _isLoading
                       ? SizedBox(
                     width: 20,
                     height: 20,
@@ -221,8 +227,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authController = Provider.of<AuthController>(context);
-
     return Scaffold(
       body: Stack(
         children: [
@@ -276,10 +280,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: authController.isLoading
+                            onPressed: _isLoading
                                 ? null
                                 : () async {
-                              final username = _usernameController.text;
+                              final username = _usernameController.text.trim();
                               final password = _passwordController.text;
 
                               if (username.isEmpty || password.isEmpty) {
@@ -289,34 +293,41 @@ class _LoginScreenState extends State<LoginScreen> {
                                 return;
                               }
 
+                              // Inside login button onPressed:
+                              final authController = Provider.of<AuthController>(context, listen: false);
+                              final hotelCardController = Provider.of<HotelCardController>(context, listen: false);
+
+                              setState(() => _isLoading = true);
                               final success = await authController.login(username, password);
+                              setState(() => _isLoading = false);
+
                               if (success) {
                                 if (authController.currentUser!.isAdmin) {
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => AdminHomeScreen()),
-                                  );
+                                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AdminHomeScreen()));
                                 } else {
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => WelcomeScreen()),
-                                  );
+                                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => UserHomeScreen(
+                                    authController: authController,
+                                    hotelCardController: hotelCardController,
+                                  )));
                                 }
-                              } else {
+
+                              }else {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(authController.authError ?? "Identifiants invalides")),
+                                  SnackBar(
+                                    content: Text(_authController.authError ?? "Identifiants invalides"),
+                                  ),
                                 );
                               }
                             },
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(color: AppColors.primary),
-                              foregroundColor: AppColors.white,
+                              foregroundColor: Colors.white,
                               backgroundColor: Colors.lightBlue,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            child: authController.isLoading
+                            child: _isLoading
                                 ? CircularProgressIndicator(color: AppColors.primary)
                                 : Text(AppStrings.loginButton),
                           ),
@@ -343,7 +354,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // 🔑 UN SEUL BOUTON POUR LE FLUX COMPLET
                     TextButton(
                       onPressed: () => _showForgotPasswordFlow(context),
                       child: Text(

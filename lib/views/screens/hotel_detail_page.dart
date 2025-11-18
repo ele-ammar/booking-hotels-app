@@ -275,7 +275,8 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
                     ),
                     child: Text(
                       'Reservation',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white),
+
                     ),
                   ),
                 ],

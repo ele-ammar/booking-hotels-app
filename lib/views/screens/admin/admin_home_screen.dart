@@ -1,3 +1,5 @@
+import 'package:booking/views/screens/admin/AdminPlaceListScreen.dart';
+import 'package:booking/views/screens/admin/UserManagementScreen.dart';
 import 'package:flutter/material.dart';
 import '../admin/admin_hotel_list_screen.dart';
 
@@ -90,22 +92,19 @@ class AdminHomeScreen extends StatelessWidget {
                     'Gérer les comptes',
                     Icons.people,
                     Color(0xFFF5A623),
-                        () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Section en cours de développement')),
-                      );
-                    },
+                        () => _navigateTo(context, UserManagementScreen()),
+
+
                   ),
                   _buildActionCard(
                     context,
-                    'Rapports & Stats',
-                    Icons.bar_chart,
-                    Color(0xFF50C878),
-                        () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Rapports bientôt disponibles')),
-                      );
-                    },
+                    'Gérer les places',
+                    Icons.place_sharp,
+
+                    Color(0xFFEFC3CA),
+                        () => _navigateTo(context, AdminPlaceListScreen()),
+
+
                   ),
                   _buildActionCard(
                     context,

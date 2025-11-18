@@ -1,9 +1,91 @@
-// lib/screens/user/user_home.dart
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 
-class UserHomeScreen extends StatelessWidget {
-  const UserHomeScreen({super.key});
+import '../../controllers/auth_controller.dart';
+import '../../controllers/hotel_card_controller.dart';
+import '../../models/HotelCardData.dart';
+
+class UserHomeScreen extends StatefulWidget {
+  final AuthController authController;
+  final HotelCardController hotelCardController;
+
+  const UserHomeScreen({
+    super.key,
+    required this.authController,
+    required this.hotelCardController,
+  });
+
+  @override
+  State<UserHomeScreen> createState() => _UserHomeScreenState();
+}
+
+class _UserHomeScreenState extends State<UserHomeScreen> {
+  late TextEditingController _locationController;
+  DateTime? _checkInDate;
+  DateTime? _checkOutDate;
+  int _guests = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    _locationController = TextEditingController();
+
+    // 🔹 Listen to text changes → filter cards
+    _locationController.addListener(_onLocationChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initData();
+    });
+  }
+
+  void _onLocationChanged() {
+    widget.hotelCardController.filterCards(_locationController.text);
+  }
+
+  void _initData() {
+    final user = widget.authController.currentUser;
+    if (user == null) {
+      // Optional: handle guest mode or redirect
+      debugPrint('⚠️ No user logged in');
+      return;
+    }
+
+    // 🔁 Load cards → then init favorites
+    widget.hotelCardController.loadCards().then((_) {
+      if (!mounted) return;
+      debugPrint('✅ Cards loaded: ${widget.hotelCardController.filteredCardsCount}');
+      if (widget.hotelCardController.error != null) {
+        _showError(widget.hotelCardController.error!);
+        return;
+      }
+
+      widget.hotelCardController.initFavorites(user.id).then((_) {
+        if (!mounted) return;
+        debugPrint('✅ Favorites synced: ${widget.hotelCardController.favoriteIdsCount}');
+        // UI auto-updates via addListener
+      }).catchError((e) {
+        debugPrint('❌ initFavorites error: $e');
+        if (mounted) _showError('Erreur chargement favoris');
+      });
+    }).catchError((e) {
+      debugPrint('❌ loadCards error: $e');
+      if (mounted) _showError('Impossible de charger les hôtels');
+    });
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  void dispose() {
+    _locationController
+      ..removeListener(_onLocationChanged)
+      ..dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,51 +97,33 @@ class UserHomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header: Bonjour + Notification
+              // Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Hello,',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w400,
-                          color: Color(0xFF7A7A7A),
-                        ),
-                      ),
+                      const Text('Hello,', style: TextStyle(fontSize: 16, color: Color(0xFF7A7A7A))),
                       const SizedBox(height: 4),
                       Text(
-                        'èlè ammar',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
+                        widget.authController.currentUser?.username ?? 'Utilisateur',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F0F0),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.black,
-                      size: 24,
-                    ),
+                    decoration: BoxDecoration(color: Color(0xFFF0F0F0), shape: BoxShape.circle),
+                    child: const Icon(Icons.notifications_outlined, color: Colors.black),
                   ),
                 ],
               ),
               const SizedBox(height: 24),
 
-              // Search Section
+              // 🔹 Search Section
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -73,113 +137,172 @@ class UserHomeScreen extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    _SearchField(
-                      label: 'Search Location',
-                      icon: Icons.location_on_outlined,
-                      value: 'Paris, France',
+                    TextField(
+                      controller: _locationController,
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        hintText: 'Search location or hotel name...',
+                        border: InputBorder.none,
+                        filled: true,
+                        fillColor: const Color(0xFFF8F8F8),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+
                     Row(
                       children: [
                         Expanded(
-                          child: _SearchField(
-                            label: 'Check in',
-                            icon: Icons.calendar_today_outlined,
-                            value: '12/05/2025',
-                            textAlign: TextAlign.center,
+                          child: TextButton.icon(
+                            onPressed: () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: _checkInDate ?? DateTime.now(),
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime(2030),
+                              );
+                              if (date != null && mounted) {
+                                setState(() {
+                                  _checkInDate = date;
+                                });
+                              }
+                            },
+                            icon: Icon(Icons.calendar_today_outlined, size: 20, color: Color(0xFF7A7A7A)),
+                            label: Text(
+                              _checkInDate?.toString().split(' ')[0] ?? 'Check in',
+                              style: TextStyle(color: Colors.black),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              backgroundColor: const Color(0xFFF8F8F8),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: _SearchField(
-                            label: 'Check out',
-                            icon: Icons.calendar_today_outlined,
-                            value: '15/05/2025',
-                            textAlign: TextAlign.center,
+                          child: TextButton.icon(
+                            onPressed: () async {
+                              if (_checkInDate == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Veuillez sélectionner une date d\'arrivée')),
+                                );
+                                return;
+                              }
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: _checkOutDate ?? _checkInDate!.add(const Duration(days: 1)),
+                                firstDate: _checkInDate!,
+                                lastDate: DateTime(2030),
+                              );
+                              if (date != null && mounted) {
+                                setState(() {
+                                  _checkOutDate = date;
+                                });
+                              }
+                            },
+                            icon: Icon(Icons.calendar_today_outlined, size: 20, color: Color(0xFF7A7A7A)),
+                            label: Text(
+                              _checkOutDate?.toString().split(' ')[0] ?? 'Check out',
+                              style: TextStyle(color: Colors.black),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              backgroundColor: const Color(0xFFF8F8F8),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    _SearchField(
-                      label: 'Guests',
-                      icon: Icons.person_outline,
-                      value: '2 Guests',
-                      textAlign: TextAlign.center,
+                    const SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        Icon(Icons.person_outline, size: 20, color: Color(0xFF7A7A7A)),
+                        const SizedBox(width: 8),
+                        Text('Guests', style: TextStyle(color: Color(0xFF7A7A7A))),
+                        const SizedBox(width: 8),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.remove, size: 20),
+                              onPressed: () {
+                                if (_guests > 1) {
+                                  setState(() {
+                                    _guests--;
+                                  });
+                                }
+                              },
+                            ),
+                            Text('$_guests', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            IconButton(
+                              icon: Icon(Icons.add, size: 20),
+                              onPressed: () {
+                                setState(() {
+                                  _guests++;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
-                          // Lancer la recherche
+                          Navigator.pushNamed(
+                            context,
+                            '/search-results',
+                            arguments: {
+                              'location': _locationController.text,
+                              'checkIn': _checkInDate,
+                              'checkOut': _checkOutDate,
+                              'guests': _guests,
+                            },
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF4C9FC1),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                         child: const Text(
                           'Search',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
-              // "Explore Hotels" Section
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     'Explore Hotels',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.cyan,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.cyan),
                   ),
                   TextButton(
                     onPressed: () {
-                      // Voir plus
+                      Navigator.pushNamed(context, '/explore');
                     },
-                    child: const Text(
-                      'See more',
-                      style: TextStyle(
-                        color: Color(0xFF3A3A3A),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    child: const Text('See more', style: TextStyle(color: Color(0xFF3A3A3A))),
                   ),
                 ],
               ),
+              const SizedBox(height: 35),
 
-              // Hotel Carousel — hauteur ajustée, pas d'espace inutile
-              SizedBox(
-                height:300, // hauteur suffisante sans débordement
-                child: CarouselSlider.builder(
-                  itemCount: _hotelData.length,
-                  options: CarouselOptions(
-                    enlargeCenterPage: true,
-                    viewportFraction: 0.83,
-                    initialPage: 0,
-                    autoPlay: true,
-                    enableInfiniteScroll: true,
-                  ),
-                  itemBuilder: (context, index, realIndex) {
-                    final hotel = _hotelData[index];
-                    return _HotelCard(hotel: hotel);
-                  },
-                ),
+              // ✅ CAROUSEL — manually listening to changes
+              _HotelCarouselSection(
+                hotelCardController: widget.hotelCardController,
+                authController: widget.authController,
+                userId: widget.authController.currentUser?.id ?? '0',
               ),
             ],
           ),
@@ -187,8 +310,16 @@ class UserHomeScreen extends StatelessWidget {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
-        selectedItemColor: const Color(0xFF3A3A3A),
-        unselectedItemColor: Colors.grey,
+        onTap: (index) {
+          switch (index) {
+            case 1:
+              Navigator.pushNamed(context, '/wishlist');
+              break;
+            case 2:
+              Navigator.pushNamed(context, '/profile');
+              break;
+          }
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Wishlist'),
@@ -199,215 +330,305 @@ class UserHomeScreen extends StatelessWidget {
   }
 }
 
-class _SearchField extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final String value;
-  final TextAlign textAlign;
+// 🔹 Isolated widget that listens to HotelCardController changes
+class _HotelCarouselSection extends StatefulWidget {
+  final HotelCardController hotelCardController;
+  final AuthController authController;
+  final String userId;
 
-  const _SearchField({
-    required this.label,
-    required this.icon,
-    required this.value,
-    this.textAlign = TextAlign.left,
+  const _HotelCarouselSection({
+    required this.hotelCardController,
+    required this.authController,
+    required this.userId,
+  });
+
+  @override
+  State<_HotelCarouselSection> createState() => _HotelCarouselSectionState();
+}
+
+class _HotelCarouselSectionState extends State<_HotelCarouselSection> {
+  @override
+  void initState() {
+    super.initState();
+    widget.hotelCardController.addListener(_updateUI);
+    widget.authController.addListener(_updateUI);
+  }
+
+  @override
+  void dispose() {
+    widget.hotelCardController.removeListener(_updateUI);
+    widget.authController.removeListener(_updateUI);
+    super.dispose();
+  }
+
+  void _updateUI() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = widget.authController.currentUser;
+
+    if (user == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final controller = widget.hotelCardController;
+
+    if (controller.isLoading) {
+      return SizedBox(
+        height: 220,
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (controller.error != null) {
+      return SizedBox(
+        height: 220,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error, color: Colors.red),
+              const SizedBox(height: 8),
+              Text(controller.error!),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => controller.loadCards(),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final cards = controller.cards;
+    if (cards.isEmpty) {
+      return SizedBox(
+        height: 220,
+        child: const Center(child: Text('Aucun hôtel disponible')),
+      );
+    }
+
+    return CarouselSlider.builder(
+      itemCount: cards.length,
+      options: CarouselOptions(
+        enlargeCenterPage: true,
+        viewportFraction: 0.85,
+        autoPlay: true,
+        autoPlayInterval: const Duration(seconds: 4),
+        pauseAutoPlayOnTouch: true,
+        height: 220,
+      ),
+      itemBuilder: (context, index, realIndex) {
+        return _HotelCardExactMatch(
+          card: cards[index],
+          userId: widget.userId,
+          hotelCardController: widget.hotelCardController,
+        );
+      },
+    );
+  }
+}
+
+// 🔹 Card — accept controller to avoid context.read
+class _HotelCardExactMatch extends StatelessWidget {
+  final HotelCardData card;
+  final String userId;
+  final HotelCardController hotelCardController;
+
+  const _HotelCardExactMatch({
+    required this.card,
+    required this.userId,
+    required this.hotelCardController,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F8F8),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: const Color(0xFF7A7A7A)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF7A7A7A),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
-                  textAlign: textAlign,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HotelCard extends StatelessWidget {
-  final Map<String, dynamic> hotel;
-
-  const _HotelCard({required this.hotel});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return GestureDetector(
+      onTap: () {
+        if (card.hotelId?.isNotEmpty == true) {
+          Navigator.pushNamed(context, '/hotel', arguments: {'id': card.hotelId});
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Hôtel non disponible')),
+          );
+        }
+      },
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
+          child: Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: _buildImage(card.imageUrl),
+              ),
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.yellow[700],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.star, color: Colors.white, size: 12),
+                      const SizedBox(width: 1),
+                      Text(
+                        '${card.stars}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () {
+                    hotelCardController.toggleFavorite(card.id, userId);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.8),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      card.isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: card.isFavorite ? Colors.red : Colors.grey,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 60,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Colors.transparent, Colors.white],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              card.name,
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              card.location,
+                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '${card.pricePerMonth.toStringAsFixed(0)} TND',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF00AEEF),
+                            ),
+                          ),
+                          const Text(
+                            'per month',
+                            style: TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.asset(
-                    hotel['image'],
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[300],
-                        child: const Icon(Icons.broken_image, size: 40, color: Colors.grey),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: List.generate(5, (i) {
-                return Icon(
-                  i < hotel['rating'] ? Icons.star : Icons.star_border,
-                  color: const Color(0xFFFFC107),
-                  size: 14,
-                );
-              }),
-            ),
-          ),
-          const SizedBox(height: 5),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              hotel['name'],
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              '\$${hotel['price']} / night',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF3A3A3A),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F0F0),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.favorite_border,
-                    size: 16,
-                    color: Colors.black,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F0F0),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.share_outlined,
-                    size: 16,
-                    color: Colors.black,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F0F0),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.visibility_outlined,
-                    size: 16,
-                    color: Colors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
+    );
+  }
+
+  Widget _buildImage(String imageUrl) {
+    String url = imageUrl.isEmpty ? '' : imageUrl;
+    if (!url.contains('.') && !url.startsWith('http')) {
+      url = '$url.jpg';
+    }
+
+    if (url.isEmpty) return _imagePlaceholder();
+
+    if (url.startsWith('http')) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) =>
+        progress == null ? child : const Center(child: CircularProgressIndicator()),
+        errorBuilder: (context, error, stack) => _imagePlaceholder(),
+      );
+    } else {
+      return Image.asset(
+        url,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stack) => _imagePlaceholder(),
+      );
+    }
+  }
+
+  Widget _imagePlaceholder() {
+    return Container(
+      color: const Color(0xFFF8F8F8),
+      child: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.hotel, size: 40, color: Colors.grey),
+            SizedBox(height: 4),
+            Text('Image', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ],
+        ),
       ),
     );
   }
 }
-
-// Données simulées
-final List<Map<String, dynamic>> _hotelData = [
-  {
-    'id': '1',
-    'name': 'Grand Plaza Hotel',
-    'rating': 4,
-    'price': 189,
-    'image': 'assets/images/yadis.jpg',
-  },
-  {
-    'id': '2',
-    'name': 'Ocean View Resort',
-    'rating': 5,
-    'price': 250,
-    'image': 'assets/images/tulip.jpg',
-  },
-  {
-    'id': '3',
-    'name': 'Mountain Lodge',
-    'rating': 4,
-    'price': 120,
-    'image': 'assets/images/mouradigamarth.jpg',
-  },
-];

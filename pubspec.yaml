@@ -14,6 +14,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   page_transition: ^2.2.1
   carousel_slider: ^5.0.0
+  shared_preferences: ^2.3.2
 
 dev_dependencies:
   flutter_test:
@@ -58,6 +59,40 @@ flutter:
     - assets/images/img11 (4).jpg
     - assets/images/img11 (5).jpg
     - assets/images/img11 (6).jpg
-    - assets/images/mouradigamarth.jpg
+    - assets/images/marhaba.jpg
+    - assets/images/kanta.jpg
+    - assets/images/pearl.jpg
+    - assets/images/mahdiabeach.jpeg
+    - assets/images/thapsus.jpg
+    - assets/images/iberostar.jpg
+    - assets/images/radisson.jpg
+    - assets/images/plaza.jpg
+    - assets/images/cigale.jpg
+    - assets/images/mimosas.jpg
+    - assets/images/itropika.jpg
+    - assets/images/dareljeld.jpg
+    - assets/images/thalassa.jpg
+    - assets/images/hilton.jpg
+    - assets/images/marina.jpg
+    - assets/images/africajad.jpg
+    - assets/images/djerbahood.jpeg
+    - assets/images/ghriba.jpeg
+    - assets/images/portelkantaoui.jpeg
+    - assets/images/soukelattarine.jpeg
+    - assets/images/madinahammamet.jpeg
+    - assets/images/piratehammamet.jpeg
+    - assets/images/sidibousaid.jpeg
+    - assets/images/chatjrayid.jpeg
+    - assets/images/palmier.jpeg
+    - assets/images/plagenabeul.jpeg
+    - assets/images/souknabeul.jpeg
+    - assets/images/ribat.jpeg
+    - assets/images/sidibousaid.jpeg
+    - assets/images/soukelattarine.jpeg
+    - assets/images/marina.jpeg
+    - assets/images/jazz.jpeg
+    - assets/images/foret.jpeg
+
+
 
 
