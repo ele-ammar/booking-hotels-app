@@ -21,16 +21,22 @@ class Hotel {
   });
 
   // Factory pour créer un Hotel depuis JSON
-  factory Hotel.fromJson(Map<String, dynamic> json) {
+  factory Hotel.fromJson(Map<dynamic, dynamic> json) {
+    // Convertit dynamiquement les clés en String (sécurité)
+    Map<String, dynamic> safeJson = {};
+    json.forEach((key, value) {
+      safeJson[key.toString()] = value;
+    });
+
     return Hotel(
-      id: json['id'].toString(), // Convertir en String si nécessaire
-      name: json['name'] ?? '',
-      location: json['location'] ?? '',
-      pricePerMonth: (json['price_per_month'] as num?)?.toDouble() ?? 0.0,
-      stars: json['stars'] as int? ?? 5,
-      imageUrl: json['image_url'] ?? '',
-      description: json['description'] ?? '',
-      facilities: (json['facilities'] as List<dynamic>?)
+      id: safeJson['id']?.toString() ?? '',
+      name: safeJson['name']?.toString() ?? '',
+      location: safeJson['location']?.toString() ?? '',
+      pricePerMonth: (safeJson['price_per_month'] as num?)?.toDouble() ?? 0.0,
+      stars: safeJson['stars'] is int ? safeJson['stars'] as int : (safeJson['stars'] as num?)?.toInt() ?? 5,
+      imageUrl: safeJson['image_url']?.toString() ?? '',
+      description: safeJson['description']?.toString() ?? '',
+      facilities: (safeJson['facilities'] as List<dynamic>?)
           ?.map((e) => e.toString())
           .toList() ??
           [],
@@ -48,5 +54,35 @@ class Hotel {
       'image_url': imageUrl,
       'facilities': facilities,
     };
+  }
+
+  double calculateEstimatedPrice({
+    required DateTime? checkIn,
+    required DateTime? checkOut,
+    required int guests,
+  }) {
+    if (checkIn == null || checkOut == null || checkOut.isBefore(checkIn)) {
+      return 0.0;
+    }
+
+    int nights = checkOut.difference(checkIn).inDays;
+    if (nights <= 0) return 0.0;
+
+    // Prix par nuit (basé sur 30 jours/mois)
+    double pricePerNight = pricePerMonth / 30;
+
+    // Prix de base
+    double basePrice = pricePerNight * nights;
+
+    // Supplément après 2 personnes (+10 TND/nuit/personne)
+    const double extraPerGuest = 10.0;
+    int extraGuests = (guests - 2).clamp(0, 10);
+    double extraPrice = extraGuests * extraPerGuest * nights;
+
+    // +10% taxe
+    const double taxRate = 0.1;
+    double total = (basePrice + extraPrice) * (1 + taxRate);
+
+    return total;
   }
 }

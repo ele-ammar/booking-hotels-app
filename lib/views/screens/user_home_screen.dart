@@ -303,6 +303,9 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                 hotelCardController: widget.hotelCardController,
                 authController: widget.authController,
                 userId: widget.authController.currentUser?.id ?? '0',
+                checkIn: _checkInDate,      // ←
+                checkOut: _checkOutDate,    // ←
+                guests: _guests,            // ←
               ),
             ],
           ),
@@ -335,11 +338,17 @@ class _HotelCarouselSection extends StatefulWidget {
   final HotelCardController hotelCardController;
   final AuthController authController;
   final String userId;
+  final DateTime? checkIn;      // ← ajout
+  final DateTime? checkOut;     // ← ajout
+  final int guests;             // ← ajout
 
   const _HotelCarouselSection({
     required this.hotelCardController,
     required this.authController,
     required this.userId,
+    required this.checkIn,      // ←
+    required this.checkOut,     // ←
+    required this.guests,       // ←
   });
 
   @override
@@ -426,6 +435,9 @@ class _HotelCarouselSectionState extends State<_HotelCarouselSection> {
           card: cards[index],
           userId: widget.userId,
           hotelCardController: widget.hotelCardController,
+          checkIn: widget.checkIn,      // ←
+          checkOut: widget.checkOut,    // ←
+          guests: widget.guests,        // ←
         );
       },
     );
@@ -437,11 +449,17 @@ class _HotelCardExactMatch extends StatelessWidget {
   final HotelCardData card;
   final String userId;
   final HotelCardController hotelCardController;
+  final DateTime? checkIn;      // ←
+  final DateTime? checkOut;     // ←
+  final int guests;             // ←
 
   const _HotelCardExactMatch({
     required this.card,
     required this.userId,
     required this.hotelCardController,
+    required this.checkIn,      // ←
+    required this.checkOut,     // ←
+    required this.guests,       // ←
   });
 
   @override
@@ -449,7 +467,16 @@ class _HotelCardExactMatch extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         if (card.hotelId?.isNotEmpty == true) {
-          Navigator.pushNamed(context, '/hotel', arguments: {'id': card.hotelId});
+          Navigator.pushNamed(
+            context,
+            '/hotel',
+            arguments: {
+              'hotelId': card.hotelId,
+              'checkIn': checkIn,        // ✅ maintenant disponible
+              'checkOut': checkOut,      // ✅
+              'guests': guests,          // ✅
+            },
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Hôtel non disponible')),

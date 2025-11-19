@@ -3,22 +3,32 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
+import '../../models/hotel.dart';
 
 class HotelDetailPage extends StatefulWidget {
   final String hotelId;
+  final DateTime? checkIn;
+  final DateTime? checkOut;
+  final int guests;
 
-  const HotelDetailPage({Key? key, required this.hotelId}) : super(key: key);
+  const HotelDetailPage({
+    Key? key,
+    required this.hotelId,
+    this.checkIn,
+    this.checkOut,
+    this.guests = 2,
+  }) : super(key: key);
 
   @override
   State<HotelDetailPage> createState() => _HotelDetailPageState();
 }
 
 class _HotelDetailPageState extends State<HotelDetailPage> {
-  Map<String, dynamic>? _hotel;
+  Hotel? _hotel;
   bool _isLoading = true;
   String? _error;
 
-  final String _baseUrl = 'http://192.168.1.198:3000/api/hotels'; // ← Ton IP locale
+  final String _baseUrl = 'http://192.168.1.198:3000/api/hotels';
 
   @override
   void initState() {
@@ -30,12 +40,13 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
     try {
       final response = await http.get(Uri.parse('$_baseUrl/${widget.hotelId}'));
       if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
         setState(() {
-          _hotel = jsonDecode(response.body);
+          _hotel = Hotel.fromJson(data);
           _isLoading = false;
         });
       } else {
-        throw Exception('Hôtel non trouvé');
+        throw Exception('Hôtel non trouvé (HTTP ${response.statusCode})');
       }
     } on SocketException {
       setState(() {
@@ -44,7 +55,7 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Erreur: $e';
+        _error = 'Erreur: ${e.toString()}';
         _isLoading = false;
       });
     }
@@ -90,7 +101,6 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
   }
 
   @override
-
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
@@ -107,15 +117,14 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
     }
 
     final hotel = _hotel!;
-    final imageUrl = hotel['image_url'] ?? 'assets/images/default.jpg';
-
-    // 🔧 Gestion sécurisée des facilities
-    List<String> facilities = [];
-    if (hotel['facilities'] is List) {
-      facilities = hotel['facilities'].map<String>((e) => e.toString()).toList();
-    } else {
-      facilities = ['Free parking', 'WiFi'];
-    }
+    final nights = widget.checkIn != null && widget.checkOut != null
+        ? widget.checkOut!.difference(widget.checkIn!).inDays
+        : 0;
+    final estimatedPrice = hotel.calculateEstimatedPrice(
+      checkIn: widget.checkIn,
+      checkOut: widget.checkOut,
+      guests: widget.guests,
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -143,7 +152,7 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: _buildImage(imageUrl),
+                  child: _buildImage(hotel.imageUrl),
                 ),
                 Positioned(
                   top: 8,
@@ -158,7 +167,7 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
                       children: [
                         Icon(Icons.star, color: Colors.white, size: 16),
                         Text(
-                          '${hotel['stars'] ?? 5}',
+                          '${hotel.stars}',
                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -178,47 +187,39 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
 
             SizedBox(height: 16),
 
-            // Nom + Localisation + Prix
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        hotel['name'] ?? 'Sans nom',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        hotel['location']?.toLowerCase() ?? 'Localisation inconnue',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${(hotel['price_per_month'] ?? 0).toStringAsFixed(0)} TND',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF00AEEF)),
-                    ),
-                    Text(
-                      'per month',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
+            // Nom + Localisation
+            Text(
+              hotel.name,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            SizedBox(height: 4),
+            Text(
+              hotel.location.toLowerCase(),
+              style: TextStyle(color: Colors.grey),
+            ),
+
+            // 🔹 Dates & guests sélectionnés
+            if (widget.checkIn != null && widget.checkOut != null)
+              Container(
+                margin: EdgeInsets.symmetric(vertical: 8),
+                padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${widget.checkIn!.toLocal().day}/${widget.checkIn!.toLocal().month} → '
+                      '${widget.checkOut!.toLocal().day}/${widget.checkOut!.toLocal().month} • '
+                      '${widget.guests} guest${widget.guests > 1 ? 's' : ''}',
+                  style: TextStyle(color: Colors.blue, fontSize: 12),
+                ),
+              ),
 
             SizedBox(height: 24),
 
             // Description
             Text(
-              hotel['description'] ?? 'Aucune description disponible.',
+              hotel.description,
               style: TextStyle(fontSize: 16, height: 1.5),
             ),
 
@@ -233,12 +234,12 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: facilities.map((f) => _buildFacilityTag(f)).toList(),
+              children: hotel.facilities.map(_buildFacilityTag).toList(),
             ),
 
             SizedBox(height: 40),
 
-            // Total + Bouton Réservation
+            // 🔹 Pricing + Bouton
             Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -252,31 +253,54 @@ class _HotelDetailPageState extends State<HotelDetailPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Total TND ${(hotel['price_per_month'] ?? 0) * 2}',
+                          'Total TND ${(estimatedPrice ?? 0.0).toStringAsFixed(0)}',
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
-                        Text(
-                          'for 2 months',
-                          style: TextStyle(color: Colors.grey),
-                        ),
+                        if (nights > 0)
+                          Text(
+                            'for $nights night${nights > 1 ? 's' : ''}',
+                            style: TextStyle(color: Colors.grey),
+                          )
+                        else
+                          Text(
+                            'Select dates to see price',
+                            style: TextStyle(color: Colors.orange, fontSize: 12),
+                          ),
                       ],
                     ),
                   ),
+                  SizedBox(width: 12),
                   ElevatedButton(
                     onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Réservation en cours...')),
+                      if (widget.checkIn == null || widget.checkOut == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Veuillez sélectionner des dates.'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                        return;
+                      }
+
+                      Navigator.pushNamed(
+                        context,
+                        '/hotel-rooms',
+                        arguments: {
+                          'hotel': hotel,
+                          'checkIn': widget.checkIn,
+                          'checkOut': widget.checkOut,
+                          'guests': widget.guests,
+                        },
                       );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color(0xFF00AEEF),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     ),
                     child: Text(
-                      'Reservation',
-                      style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white),
-
+                      'Select rooms',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ),
                 ],

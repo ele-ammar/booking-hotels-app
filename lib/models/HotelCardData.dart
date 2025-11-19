@@ -64,4 +64,35 @@ class HotelCardData {
       facilitiesPreview: facilities,
     );
   }
+
+
+  double calculateEstimatedPrice({
+    required DateTime? checkIn,
+    required DateTime? checkOut,
+    required int guests,
+  }) {
+    if (checkIn == null || checkOut == null || checkOut.isBefore(checkIn)) {
+      return 0.0;
+    }
+
+    int nights = checkOut.difference(checkIn).inDays;
+    if (nights <= 0) return 0.0;
+
+    // Prix par nuit (basé sur 30 jours/mois)
+    double pricePerNight = pricePerMonth / 30;
+
+    // Prix de base
+    double basePrice = pricePerNight * nights;
+
+    // Supplément après 2 personnes (+10 TND/nuit/personne)
+    const double extraPerGuest = 10.0;
+    int extraGuests = (guests - 2).clamp(0, 10);
+    double extraPrice = extraGuests * extraPerGuest * nights;
+
+    // +10% taxe
+    const double taxRate = 0.1;
+    double total = (basePrice + extraPrice) * (1 + taxRate);
+
+    return total;
+  }
 }

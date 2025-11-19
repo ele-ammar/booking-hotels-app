@@ -1,6 +1,9 @@
 // lib/main.dart
 
+import 'package:booking/views/screens/HotelRoomsScreen.dart';
+import 'package:booking/views/screens/PaymentScreen.dart';
 import 'package:booking/views/screens/admin/UserManagementScreen.dart';
+import 'package:booking/views/screens/booking_summary_screen.dart';
 import 'package:booking/views/screens/login_screen.dart';
 import 'package:booking/views/screens/search_results_screen.dart';
 import 'package:booking/views/screens/user_home_screen.dart'; // Your current version
@@ -16,6 +19,7 @@ import 'controllers/signup_controller.dart';
 import 'controllers/hotel_controller.dart'; // only if used elsewhere
 
 // Screens
+import 'models/hotel.dart';
 import 'views/screens/admin/admin_home_screen.dart';
 import 'views/screens/admin/admin_hotel_edit_screen.dart';
 import 'views/screens/admin/admin_hotel_list_screen.dart';
@@ -69,24 +73,38 @@ class MyApp extends StatelessWidget {
               return MaterialPageRoute(builder: (_) => const WishlistScreen());
 
             case '/hotel':
-              String? hotelId;
-
-              // ✅ Gère les deux cas : String direct OU Map avec 'id'
               final args = settings.arguments;
+
+              String? hotelId;
+              DateTime? checkIn;
+              DateTime? checkOut;
+              int guests = 2;
+
+              // 🔹 Gère les deux formats d'arguments :
+              //   1. String directe (ancien comportement)
+              //   2. Map (nouveau comportement avec filtres)
               if (args is String) {
                 hotelId = args;
               } else if (args is Map<String, dynamic>?) {
-                hotelId = args?['id'] as String?;
+                hotelId = args?['hotelId'] as String?;
+                checkIn = args?['checkIn'] as DateTime?;
+                checkOut = args?['checkOut'] as DateTime?;
+                guests = (args?['guests'] as int?) ?? 2;
               }
 
-              if (hotelId == null) {
-                return MaterialPageRoute(builder: (_) => const Scaffold(
-                  body: Center(child: Text('Hôtel non spécifié')),
+              if (hotelId == null || hotelId.isEmpty) {
+                return MaterialPageRoute(builder: (_) => Scaffold(
+                  appBar: AppBar(title: Text('Erreur')),
+                  body: Center(child: Text('ID d’hôtel manquant')),
                 ));
               }
 
-              return MaterialPageRoute(builder: (_) => HotelDetailPage(hotelId: hotelId!));
-
+              return MaterialPageRoute(builder: (_) => HotelDetailPage(
+                hotelId: hotelId!,
+                checkIn: checkIn,
+                checkOut: checkOut,
+                guests: guests,
+              ));
             case '/management':
               return MaterialPageRoute(builder: (_) => const UserManagementScreen());
 
@@ -101,6 +119,36 @@ class MyApp extends StatelessWidget {
                 ),
               );
 
+
+            case '/hotel-rooms':
+              final args = settings.arguments as Map<String, dynamic>?;
+              final hotelData = args?['hotel'];
+              final Hotel hotel = hotelData is Map
+                  ? Hotel.fromJson(hotelData)
+                  : hotelData as Hotel;
+              return MaterialPageRoute(builder: (_) => HotelRoomsScreen(
+                hotel: hotel,
+                checkIn: args?['checkIn'],
+                checkOut: args?['checkOut'],
+                guests: (args?['guests'] as int?) ?? 2,
+              ));
+
+            case '/booking-summary':
+              final args = settings.arguments as Map<String, dynamic>?;
+              final hotel = args?['hotel'] is Map
+                  ? Hotel.fromJson(args!['hotel'] as Map<String, dynamic>)
+                  : args?['hotel'] as Hotel;
+              return MaterialPageRoute(builder: (_) => BookingSummaryScreen(
+                hotel: hotel,
+                roomType: args?['roomType'] ?? 'Standard',
+                price: (args?['price'] as num?)?.toDouble() ?? 0.0,
+                checkIn: args?['checkIn'],
+                checkOut: args?['checkOut'],
+                guests: (args?['guests'] as int?) ?? 1,
+              ));
+
+            case '/payment':
+              return MaterialPageRoute(builder: (_) => PaymentScreen());
             default:
               return MaterialPageRoute(builder: (_) => const WelcomeScreen());
           }
