@@ -736,16 +736,476 @@ app.delete('/api/places/:id', async (req, res) => {
 
 
 
+// --- ROOMS ---
 
+// 🔹 GET /api/rooms?hotelId=123
+app.get('/api/rooms', async (req, res) => {
+  try {
+    let query = `
+      SELECT id, hotel_id, name, description, price_per_night, image_url,
+             max_guests, bed_type, amenities,
+             has_breakfast, is_non_refundable, has_free_cancellation
+      FROM rooms
+    `;
+    const values = [];
 
+    if (req.query.hotelId) {
+      query += ` WHERE hotel_id = $1`;
+      values.push(parseInt(req.query.hotelId));
+    }
 
+    query += ` ORDER BY id ASC`;
 
+    const result = await pool.query(query, values);
+    const rooms = result.rows.map(row => ({
+      id: row.id.toString(),
+      hotelId: row.hotel_id.toString(),
+      name: row.name,
+      description: row.description || '',
+      pricePerNight: parseFloat(row.price_per_night) || 0,
+      imageUrl: row.image_url || '',
+      maxGuests: parseInt(row.max_guests) || 2,
+      bedType: row.bed_type,
+      amenities: Array.isArray(row.amenities) ? row.amenities : [],
+      hasBreakfast: !!row.has_breakfast,
+      isNonRefundable: !!row.is_non_refundable,
+      hasFreeCancellation: !!row.has_free_cancellation,
+    }));
 
+    res.json(rooms);
+  } catch (err) {
+    console.error('❌ Erreur /api/rooms:', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
 
+// 🔹 GET /api/rooms/:id
+app.get('/api/rooms/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, hotel_id, name, description, price_per_night, image_url,
+              max_guests, bed_type, amenities,
+              has_breakfast, is_non_refundable, has_free_cancellation
+       FROM rooms WHERE id = $1`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Chambre non trouvée' });
+    }
+    const row = result.rows[0];
+    res.json({
+      id: row.id.toString(),
+      hotelId: row.hotel_id.toString(),
+      name: row.name,
+      description: row.description || '',
+      pricePerNight: parseFloat(row.price_per_night) || 0,
+      imageUrl: row.image_url || '',
+      maxGuests: parseInt(row.max_guests) || 2,
+      bedType: row.bed_type,
+      amenities: Array.isArray(row.amenities) ? row.amenities : [],
+      hasBreakfast: !!row.has_breakfast,
+      isNonRefundable: !!row.is_non_refundable,
+      hasFreeCancellation: !!row.has_free_cancellation,
+    });
+  } catch (err) {
+    console.error('❌ Erreur GET /api/rooms/:id:', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
 
+// 🔹 POST /api/rooms
+app.post('/api/rooms', async (req, res) => {
+  const {
+    hotelId,
+    name,
+    description = '',
+    pricePerNight,
+    imageUrl = '',
+    maxGuests = 2,
+    bedType = '1 bed',
+    amenities = [],
+    hasBreakfast = false,
+    isNonRefundable = false,
+    hasFreeCancellation = true
+  } = req.body;
 
+  // ✅ Validation
+  if (!hotelId || !name || pricePerNight == null) {
+    return res.status(400).json({ error: 'hotelId, name, pricePerNight requis' });
+  }
 
+  // ✅ Vérifier que amenities est bien un tableau
+  if (!Array.isArray(amenities)) {
+    return res.status(400).json({ error: 'amenities doit être un tableau' });
+  }
 
+  try {
+    const result = await pool.query(
+      `INSERT INTO rooms (
+        hotel_id, name, description, price_per_night, image_url,
+        max_guests, bed_type, amenities,
+        has_breakfast, is_non_refundable, has_free_cancellation
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id, hotel_id, name, description, price_per_night, image_url,
+                max_guests, bed_type, amenities,
+                has_breakfast, is_non_refundable, has_free_cancellation`,
+      [
+        parseInt(hotelId),
+        name.trim(),
+        description,
+        parseFloat(pricePerNight),
+        imageUrl,
+        parseInt(maxGuests),
+        bedType,
+        JSON.stringify(amenities), // 🔑 CORRECTION : convertir en JSON string
+        hasBreakfast,
+        isNonRefundable,
+        hasFreeCancellation
+      ]
+    );
+
+    const row = result.rows[0];
+    res.status(201).json({
+      id: row.id.toString(),
+      hotelId: row.hotel_id.toString(),
+      name: row.name,
+      description: row.description,
+      pricePerNight: parseFloat(row.price_per_night),
+      imageUrl: row.image_url,
+      maxGuests: parseInt(row.max_guests),
+      bedType: row.bed_type,
+      amenities: row.amenities, // déjà parsé par pg → tableau JS
+      hasBreakfast: row.has_breakfast,
+      isNonRefundable: row.is_non_refundable,
+      hasFreeCancellation: row.has_free_cancellation,
+    });
+  } catch (err) {
+    console.error('❌ Erreur POST /api/rooms:', err);
+    res.status(400).json({ error: 'Création impossible.' });
+  }
+});
+
+// 🔹 PUT /api/rooms/:id
+app.put('/api/rooms/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      hotelId, name, description, pricePerNight, imageUrl,
+      maxGuests, bedType, amenities,
+      hasBreakfast, isNonRefundable, hasFreeCancellation
+    } = req.body;
+
+    const fields = [];
+    const values = [id]; // $1 = room id
+    let i = 2;
+
+    if (hotelId !== undefined) {
+      fields.push(`hotel_id = $${i}`);
+      values.push(parseInt(hotelId));
+      i++;
+    }
+    if (name !== undefined) {
+      fields.push(`name = $${i}`);
+      values.push(name.trim());
+      i++;
+    }
+    if (description !== undefined) {
+      fields.push(`description = $${i}`);
+      values.push(description);
+      i++;
+    }
+    if (pricePerNight !== undefined) {
+      fields.push(`price_per_night = $${i}`);
+      values.push(parseFloat(pricePerNight));
+      i++;
+    }
+    if (imageUrl !== undefined) {
+      fields.push(`image_url = $${i}`);
+      values.push(imageUrl);
+      i++;
+    }
+    if (maxGuests !== undefined) {
+      fields.push(`max_guests = $${i}`);
+      values.push(parseInt(maxGuests));
+      i++;
+    }
+    if (bedType !== undefined) {
+      fields.push(`bed_type = $${i}`);
+      values.push(bedType);
+      i++;
+    }
+    if (amenities !== undefined) {
+      if (!Array.isArray(amenities)) {
+        return res.status(400).json({ error: 'amenities doit être un tableau' });
+      }
+      fields.push(`amenities = $${i}`);
+      values.push(JSON.stringify(amenities)); // 🔑 CORRECTION
+      i++;
+    }
+    if (hasBreakfast !== undefined) {
+      fields.push(`has_breakfast = $${i}`);
+      values.push(hasBreakfast);
+      i++;
+    }
+    if (isNonRefundable !== undefined) {
+      fields.push(`is_non_refundable = $${i}`);
+      values.push(isNonRefundable);
+      i++;
+    }
+    if (hasFreeCancellation !== undefined) {
+      fields.push(`has_free_cancellation = $${i}`);
+      values.push(hasFreeCancellation);
+      i++;
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'Aucune donnée à mettre à jour' });
+    }
+
+    const query = `
+      UPDATE rooms
+      SET ${fields.join(', ')}, updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, hotel_id, name, description, price_per_night, image_url,
+                max_guests, bed_type, amenities,
+                has_breakfast, is_non_refundable, has_free_cancellation
+    `;
+
+    const result = await pool.query(query, values);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Chambre non trouvée' });
+    }
+
+    const row = result.rows[0];
+    res.json({
+      id: row.id.toString(),
+      hotelId: row.hotel_id.toString(),
+      name: row.name,
+      description: row.description,
+      pricePerNight: parseFloat(row.price_per_night),
+      imageUrl: row.image_url,
+      maxGuests: parseInt(row.max_guests),
+      bedType: row.bed_type,
+      amenities: row.amenities,
+      hasBreakfast: row.has_breakfast,
+      isNonRefundable: row.is_non_refundable,
+      hasFreeCancellation: row.has_free_cancellation,
+    });
+  } catch (err) {
+    console.error('❌ Erreur PUT /api/rooms/:id:', err);
+    res.status(400).json({ error: 'Mise à jour impossible.' });
+  }
+});
+
+// 🔹 DELETE /api/rooms/:id
+app.delete('/api/rooms/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM rooms WHERE id = $1', [req.params.id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Chambre non trouvée' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Erreur DELETE /api/rooms/:id:', err);
+    res.status(400).json({ error: 'Suppression impossible.' });
+  }
+});
+
+// --- RESERVATIONS ---
+
+// ✅ POST /api/reservations/save → créer une réservation (status = 'pending')
+app.post('/api/reservations/save', async (req, res) => {
+  const {
+    userId,
+    hotelId,
+    hotelName,
+    hotelImageUrl,
+    hotelLocation,
+    hotelStars,
+    roomType,
+    checkIn,
+    checkOut,
+    guests,
+    totalPrice
+  } = req.body;
+  if (!userId || !hotelId || !roomType || !checkIn || !checkOut || !guests || !totalPrice) {
+    return res.status(400).json({ error: 'All fields required' });
+  }
+
+  try {
+   // 🔹 Dans /api/reservations/save
+   const result = await pool.query(
+     `INSERT INTO reservations
+       (user_id, hotel_id, hotel_name, hotel_image_url, hotel_location, hotel_stars,
+        room_type, check_in_date, check_out_date, guests, total_price, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending')
+      RETURNING
+        id, user_id, hotel_id, hotel_name, hotel_image_url, hotel_location, hotel_stars,
+        room_type, check_in_date, check_out_date, guests, total_price, status, created_at`,
+     [
+       userId,
+       hotelId,
+       hotelName,       // ✅
+       hotelImageUrl,   // ✅
+       hotelLocation,   // ✅
+       hotelStars,      // ✅
+       roomType,
+       checkIn,
+       checkOut,
+       guests,
+       totalPrice
+     ]
+   );
+    res.status(201).json({ reservation: result.rows[0] });
+  } catch (err) {
+    console.error('❌ Reservation save error:', err);
+    res.status(500).json({ error: 'Failed to save booking' });
+  }
+});
+
+// ✅ GET /api/reservations/user/:userId → lister les réservations de l'utilisateur
+// ✅ GET /api/reservations/user/:userId
+// ✅ GET /api/reservations/user/:userId → compatible JSONB
+app.get('/api/reservations/user/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT
+         r.id,
+         r.user_id,
+         r.hotel_id,
+         r.room_type,
+         r.check_in_date,
+         r.check_out_date,
+         r.guests,
+         r.total_price::DECIMAL(10,2) AS total_price,
+         r.status,
+         r.created_at,
+         -- ✅ Extraire depuis data JSONB
+         h.data->>'name' AS hotel_name,
+         h.data->>'location' AS hotel_location,
+         h.data->>'image_url' AS hotel_image_url,
+         (h.data->>'stars')::INTEGER AS hotel_stars
+       FROM reservations r
+       JOIN hotels h ON r.hotel_id = h.id
+       WHERE r.user_id = $1
+       ORDER BY r.created_at DESC`,
+      [userId]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('❌ Load reservations error:', err);
+    res.status(500).json({ error: 'Failed to load bookings' });
+  }
+});
+// ✅ DELETE /api/reservations/:id → annuler/supprimer une réservation (pending only)
+app.delete('/api/reservations/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `DELETE FROM reservations
+       WHERE id = $1 AND status = 'pending'
+       RETURNING id`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Cannot cancel: not pending or not found' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Cancel reservation error:', err);
+    res.status(500).json({ error: 'Failed to cancel booking' });
+  }
+});
+
+// ✅ PUT /api/reservations/:id/confirm → confirmer après paiement
+app.put('/api/reservations/:id/confirm', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `UPDATE reservations
+       SET status = 'confirmed', updated_at = NOW()
+       WHERE id = $1 AND status = 'pending'
+       RETURNING
+         id,
+         user_id,
+         hotel_id,
+         room_type,
+         check_in_date,
+         check_out_date,
+         guests,
+         total_price::DECIMAL(10,2) AS total_price,  -- ✅ ICI aussi
+         status,
+         created_at,
+         updated_at`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Cannot confirm: not pending or not found' });
+    }
+
+    res.json({ reservation: result.rows[0] });
+  } catch (err) {
+    console.error('❌ Confirm reservation error:', err);
+    res.status(500).json({ error: 'Failed to confirm booking' });
+  }
+});
+
+// ✅ PUT /api/reservations/:id/status → mettre à jour le statut
+app.put('/api/reservations/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  // ✅ Validation du statut
+  if (!['pending', 'confirmed', 'cancelled'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
+  try {
+    // 🔐 Sécurité : on ne permet que les transitions valides
+    // (ex: on ne peut pas passer de 'cancelled' à 'confirmed')
+    const checkResult = await pool.query(
+      `SELECT status FROM reservations WHERE id = $1`,
+      [id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Reservation not found' });
+    }
+
+    const currentStatus = checkResult.rows[0].status;
+    const validTransitions = {
+      'pending': ['confirmed', 'cancelled'],
+      'confirmed': ['cancelled'],
+      'cancelled': [] // no back
+    };
+
+    if (!validTransitions[currentStatus]?.includes(status)) {
+      return res.status(400).json({
+        error: `Cannot change from '${currentStatus}' to '${status}'`
+      });
+    }
+
+    // ✅ Mise à jour
+    const result = await pool.query(
+      `UPDATE reservations
+       SET status = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [status, id]
+    );
+
+    res.json({ reservation: result.rows[0] });
+  } catch (err) {
+    console.error('❌ Update status error:', err);
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
 
 
 

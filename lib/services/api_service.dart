@@ -40,4 +40,6 @@ class ApiService {
       return false;
     }
   }
+
+  static Future getUserReservations(String string) async {}
 }

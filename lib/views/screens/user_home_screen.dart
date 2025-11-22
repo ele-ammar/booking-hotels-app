@@ -115,7 +115,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(color: Color(0xFFF0F0F0), shape: BoxShape.circle),
-                    child: const Icon(Icons.notifications_outlined, color: Colors.black),
+                    child: const Icon(Icons.person_2, color: Colors.black),
                   ),
                 ],
               ),

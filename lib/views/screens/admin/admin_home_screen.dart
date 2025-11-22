@@ -108,7 +108,7 @@ class AdminHomeScreen extends StatelessWidget {
                   ),
                   _buildActionCard(
                     context,
-                    'Paramètres',
+                    'Gèrer les chambres',
                     Icons.settings,
                     Color(0xFF6A5ACD),
                         () {

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '/../models/hotel.dart';
 import '/../controllers/hotel_controller.dart';
 import '../hotel_detail_page.dart';
+import 'AdminRoomListScreen.dart';
 import 'admin_hotel_edit_screen.dart';
 
 class AdminHotelListScreen extends StatelessWidget {
@@ -187,6 +188,23 @@ class AdminHotelListScreen extends StatelessWidget {
                         ),
                       );
                     }
+                  },
+                ),
+
+                // 🔹 Ajoute ce IconButton dans la colonne des actions (juste après le bouton "Modifier")
+                IconButton(
+                  icon: Icon(Icons.hotel, color: Colors.teal),
+                  tooltip: 'Gérer les chambres',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AdminRoomListScreen(
+                          hotelId: hotel.id,
+                          hotelName: hotel.name,
+                        ),
+                      ),
+                    );
                   },
                 ),
               ],

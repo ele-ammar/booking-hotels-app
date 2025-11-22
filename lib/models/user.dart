@@ -19,6 +19,8 @@ class User {
 
   bool get isAdmin => role == 'admin';
 
+
+
   // ✅ Optionnel : mettre à jour proprement
   void updateRole(String newRole) {
     role = newRole.toLowerCase();

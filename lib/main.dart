@@ -13,7 +13,9 @@ import 'package:provider/provider.dart';
 
 // Controllers
 import 'controllers/PlaceController.dart';
+import 'controllers/RoomController.dart';
 import 'controllers/auth_controller.dart';
+import 'controllers/booking_controller.dart';
 import 'controllers/hotel_card_controller.dart';
 import 'controllers/signup_controller.dart';
 import 'controllers/hotel_controller.dart'; // only if used elsewhere
@@ -42,6 +44,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SignupController()),
         ChangeNotifierProvider(create: (_) => HotelController()),
         ChangeNotifierProvider(create: (_) => PlaceController()),
+        ChangeNotifierProvider(create: (_) => RoomController()),
+        ChangeNotifierProvider(create: (_) => BookingController()),
       ],
       child: MaterialApp(
         title: 'Booking Hotel',
@@ -149,6 +153,11 @@ class MyApp extends StatelessWidget {
 
             case '/payment':
               return MaterialPageRoute(builder: (_) => PaymentScreen());
+
+
+
+
+
             default:
               return MaterialPageRoute(builder: (_) => const WelcomeScreen());
           }

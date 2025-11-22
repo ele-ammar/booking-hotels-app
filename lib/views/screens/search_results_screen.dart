@@ -1,11 +1,10 @@
-// lib/screens/user/search_results_screen.dart
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:provider/provider.dart';
 
 import '../../controllers/PlaceController.dart';
 import '../../controllers/hotel_card_controller.dart';
-import '../../controllers/auth_controller.dart'; // 👈 ajouté
+import '../../controllers/auth_controller.dart';
 import '../../models/HotelCardData.dart';
 
 class SearchResultsScreen extends StatefulWidget {
@@ -29,7 +28,6 @@ class SearchResultsScreen extends StatefulWidget {
 class _SearchResultsScreenState extends State<SearchResultsScreen> {
   late TextEditingController _searchController;
 
-
   @override
   void initState() {
     super.initState();
@@ -43,13 +41,9 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       final hotelController = Provider.of<HotelCardController>(context, listen: false);
       final placeController = Provider.of<PlaceController>(context, listen: false);
 
-      // ✅ Charger les hôtels d'abord
       await hotelController.loadCards(location: widget.location);
-
-      // ⏳ Attendre 200ms pour laisser le backend respirer
-      await Future.delayed(Duration(milliseconds: 200));
-
-      // ✅ Puis charger les places
+      // Optionnel : supprime ce délai si ton backend est rapide
+      // await Future.delayed(Duration(milliseconds: 200));
       await placeController.loadPlaces(location: widget.location);
     });
   }
@@ -178,7 +172,6 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue),
                 ),
               ),
-              // 🔁 Hauteur réduite à 200
               SizedBox(
                 height: 200,
                 child: Consumer<HotelCardController>(
@@ -191,7 +184,6 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                       return Center(child: Text('Aucun hôtel trouvé pour "${widget.location??"Tout"}"'));
                     }
 
-                    // 🔑 Récupère l'userId une seule fois
                     final String? userId = Provider.of<AuthController>(context, listen: false).currentUser?.id;
 
                     return CarouselSlider.builder(
@@ -208,9 +200,17 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                           return _HotelCardExactMatch(
                             card: card,
                             userId: userId,
+                            checkIn: widget.checkIn,
+                            checkOut: widget.checkOut,
+                            guests: widget.guests ?? 2,
                           );
                         } else {
-                          return _HotelCardExactMatchNonInteractive(card: card);
+                          return _HotelCardExactMatchNonInteractive(
+                            card: card,
+                            checkIn: widget.checkIn,
+                            checkOut: widget.checkOut,
+                            guests: widget.guests ?? 2,
+                          );
                         }
                       },
                     );
@@ -218,7 +218,6 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                 ),
               ),
 
-              // 🔹 SECTION "RECOMMENDED PLACES" — DYNAMIQUE ✅
               Padding(
                 padding: const EdgeInsets.only(bottom: 16, top: 24),
                 child: Text(
@@ -230,8 +229,6 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                 height: 250,
                 child: Consumer<PlaceController>(
                   builder: (context, placeController, _) {
-
-
                     if (placeController.isLoading) {
                       return Center(child: CircularProgressIndicator());
                     }
@@ -302,14 +299,20 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   }
 }
 
-// 🔹 Carte avec cœur INTERACTIF
+// 🔹 Carte interactive (connecté)
 class _HotelCardExactMatch extends StatelessWidget {
   final HotelCardData card;
   final String userId;
+  final DateTime? checkIn;
+  final DateTime? checkOut;
+  final int guests;
 
   const _HotelCardExactMatch({
     required this.card,
     required this.userId,
+    required this.checkIn,
+    required this.checkOut,
+    required this.guests,
   });
 
   @override
@@ -317,7 +320,16 @@ class _HotelCardExactMatch extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         if (card.hotelId?.isNotEmpty == true) {
-          Navigator.pushNamed(context, '/hotel', arguments: card.hotelId);
+          Navigator.pushNamed(
+            context,
+            '/hotel',
+            arguments: {
+              'hotelId': card.hotelId,
+              'checkIn': checkIn,
+              'checkOut': checkOut,
+              'guests': guests,
+            },
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Hôtel non disponible')),
@@ -340,13 +352,11 @@ class _HotelCardExactMatch extends StatelessWidget {
           ),
           child: Stack(
             children: [
-              // 🖼️ Image
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: _buildImage(card.imageUrl),
               ),
 
-              // ⭐ Étoiles
               Positioned(
                 top: 8,
                 left: 8,
@@ -374,7 +384,6 @@ class _HotelCardExactMatch extends StatelessWidget {
                 ),
               ),
 
-              // ❤️ Cœur INTERACTIF
               Positioned(
                 top: 8,
                 right: 8,
@@ -398,7 +407,6 @@ class _HotelCardExactMatch extends StatelessWidget {
                 ),
               ),
 
-              // 📄 Bas
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -474,7 +482,6 @@ class _HotelCardExactMatch extends StatelessWidget {
         child: const Center(child: Icon(Icons.image, color: Colors.grey, size: 30)),
       );
     }
-
     if (imageUrl.startsWith('http')) {
       return Image.network(
         imageUrl,
@@ -499,18 +506,35 @@ class _HotelCardExactMatch extends StatelessWidget {
   }
 }
 
-// 🔹 Version non interactive (si non connecté)
+// 🔹 Carte non interactive (non connecté)
 class _HotelCardExactMatchNonInteractive extends StatelessWidget {
   final HotelCardData card;
+  final DateTime? checkIn;
+  final DateTime? checkOut;
+  final int guests;
 
-  const _HotelCardExactMatchNonInteractive({required this.card});
+  const _HotelCardExactMatchNonInteractive({
+    required this.card,
+    required this.checkIn,
+    required this.checkOut,
+    required this.guests,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
         if (card.hotelId?.isNotEmpty == true) {
-          Navigator.pushNamed(context, '/hotel', arguments: card.hotelId);
+          Navigator.pushNamed(
+            context,
+            '/hotel',
+            arguments: {
+              'hotelId': card.hotelId,
+              'checkIn': checkIn,
+              'checkOut': checkOut,
+              'guests': guests,
+            },
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Hôtel non disponible')),
@@ -654,7 +678,6 @@ class _HotelCardExactMatchNonInteractive extends StatelessWidget {
         child: const Center(child: Icon(Icons.image, color: Colors.grey, size: 30)),
       );
     }
-
     if (imageUrl.startsWith('http')) {
       return Image.network(
         imageUrl,
@@ -679,8 +702,7 @@ class _HotelCardExactMatchNonInteractive extends StatelessWidget {
   }
 }
 
-
-// 🔹 ✅ PlaceCard
+// 🔹 PlaceCard (inchangé)
 class _PlaceCard extends StatelessWidget {
   final String name;
   final String imageUrl;
@@ -715,7 +737,7 @@ class _PlaceCard extends StatelessWidget {
             borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
             child: AspectRatio(
               aspectRatio: 16 / 9,
-              child: _buildImage(imageUrl), // ✅ Utilise la même logique que les hôtels
+              child: _buildImage(imageUrl),
             ),
           ),
           Padding(
@@ -754,7 +776,6 @@ class _PlaceCard extends StatelessWidget {
     );
   }
 
-  // ✅ COPIÉ depuis _HotelCardExactMatch — logique identique
   Widget _buildImage(String imageUrl) {
     if (imageUrl.isEmpty) {
       return Container(
@@ -762,7 +783,6 @@ class _PlaceCard extends StatelessWidget {
         child: const Center(child: Icon(Icons.image, color: Colors.grey, size: 30)),
       );
     }
-
     if (imageUrl.startsWith('http')) {
       return Image.network(
         imageUrl,
